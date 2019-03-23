@@ -1,126 +1,93 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use autodie;
 use utf8;
-use DateTime;
 use feature        qw(say);
 use File::Basename qw(basename);
 use File::Copy     qw(copy);
-use Carp           qw(croak);
-use constant ARRAY => ref [];
-use constant HASH  => ref {};
-
-
-#
-# Outermost lexicals
-#
-my %prog_info = (
-    titl        => basename($0, '.pl'),
-    expl        => 'File backup assistant',
-    vers        => 'v1.0.0',
-    date_last   => '2018-09-12',
-    date_first  => '2017-01-02',
-    opts        => { # Command options
-        tstamp_up_to_d => qr/-dt=d/i,
-        no_tstamp      => qr/-dt=none/i,
-    },
-    auth        => {
-        name => 'Jaewoong Jang',
-        posi => 'PhD student',
-        affi => 'University of Tokyo',
-        mail => 'jang.comsci@gmail.com',
-    },
-    usage       => <<'    END_HEREDOC'
-    NAME
-        baker - File backup assistant
-    SYNOPSIS
-        perl baker.pl [-dt=key] file ...
-    DESCRIPTION
-        Back up files into respective subdirs prefixed by 'bak_'.
-    OPTIONS
-        -dt=key
-            d
-                Timestamp reduces from yyyymmdd_hhmm to yyyymmdd.
-            none
-                Timestamp suppressed.
-    EXAMPLES
-        perl baker.pl oliver.eps heaviside.dat
-        perl baker.pl bateman.ps -dt=d
-        perl baker.pl harry_bateman.ps -dt=none
-    REQUIREMENTS
-        Perl 5
-    SEE ALSO
-        perl(1)
-    AUTHOR
-        Jaewoong Jang <jang.comsci@gmail.com>
-    COPYRIGHT
-        Copyright (c) 2017-2018 Jaewoong Jang
-    LICENSE
-        This software is available under the MIT license;
-        the license information is found in 'LICENSE'.
-    END_HEREDOC
-);
-my %datetimes     = construct_timestamps();
-my $tstamp_of_int = $datetimes{ymdhm};
-
-
-#
-# Subroutine calls
-#
-if (@ARGV) {
-    show_front_matter(\%prog_info, 'prog', 'auth');
-    validate_argv(\%prog_info, \@ARGV);
-    parse_argv();
-    baker();
-}
-elsif (not @ARGV) {
-    show_front_matter(\%prog_info, 'usage');
-}
-pause_shell();
-
-
-#
-# Subroutine definitions
-#
-sub parse_argv {
-    my @_argv = @ARGV;
-    
-    # If requested, reduce the datetime element.
-    foreach (@_argv) {
-        # Up to ymd (no hms)
-        $tstamp_of_int = $datetimes{ymd}
-            if $_ =~ $prog_info{opts}->{tstamp_up_to_d};
-        # No timestamp at all
-        $tstamp_of_int = $datetimes{none}
-            if $_ =~ $prog_info{opts}->{no_tstamp};
+use DateTime;
+BEGIN { # Runs at compile time
+    chomp(my $onedrive_path = `echo %OneDrive%`);
+    unless (exists $ENV{PERL5LIB} and -e $ENV{PERL5LIB}) {
+        my %lib_paths = (
+            cwd      => ".", # @INC's become dotless since v5.26000
+            onedrive => "$onedrive_path/cs/langs/perl",
+        );
+        unshift @INC, "$lib_paths{$_}/lib" for keys %lib_paths;
     }
+}
+use My::Toolset qw(:coding);
+
+
+our $VERSION = '1.01';
+our $LAST    = '2019-03-23';
+our $FIRST   = '2017-01-02';
+
+
+sub parse_argv {
+    # """@ARGV parser"""
+    
+    my(
+        $argv_aref,
+        $cmd_opts_href,
+        $run_opts_href,
+    ) = @_;
+    my %cmd_opts = %$cmd_opts_href; # For regexes
+    
+    foreach (@$argv_aref) {
+        # Files to be backed up
+        if (-e and not -d) {
+            push @{$run_opts_href->{backup_fnames}}, $_;
+        }
+        
+        # Timestamp
+        if (/$cmd_opts{timestamp}/) {
+            s/$cmd_opts{timestamp}//i;
+            $run_opts_href->{timestamp} = $_;
+        }
+        
+        # The front matter won't be displayed at the beginning of the program.
+        if (/$cmd_opts{nofm}/) {
+            $run_opts_href->{is_nofm} = 1;
+        }
+        
+        # The shell won't be paused at the end of the program.
+        if (/$cmd_opts{nopause}/) {
+            $run_opts_href->{is_nopause} = 1;
+        }
+    }
+    
+    return;
 }
 
 
 sub baker {
-    my @_argv = @ARGV;
-    my($bname, $ext, $fname_new, $subdir);
-    my %fname_old_and_new;
-    my $lengthiest = 0;
+    # """Back up the designated files."""
+    
+    my $run_opts_href = shift;
+    my %datetimes     = construct_timestamps();
+    my $timestamp_of_int =
+        $run_opts_href->{timestamp} =~ /\bdt\b/i   ? $datetimes{ymdhm} :
+        $run_opts_href->{timestamp} =~ /\bnone\b/i ? '' :
+                                                     $datetimes{ymd};
     
     # Define filename elements.
-    my $fname_space = '_';
+    my($bname, $ext, $fname_new, $subdir);
+    my %fname_old_and_new;
+    my $lengthiest  = '';
     my $path_delim  = $^O =~ /MSWin/i ? '\\' : '/';
     my $path_of_int = '.';
-    my $backup_flag = 'bak'.$fname_space; # Used as the prefix of backup dirs
+    my $backup_flag = 'bak_'; # Used as the prefix of backup dirs
     
-    foreach my $fname_old (@_argv) {
-        next if $fname_old eq $prog_info{opts}->{tstamp_up_to_d};
-        next if -d $fname_old;
-        next if not -e $fname_old;
-        
+    foreach my $fname_old (@{$run_opts_href->{backup_fnames}}) {
         # Find the lengthiest filename to construct a conversion.
         $lengthiest = $fname_old if length($fname_old) > length($lengthiest);
         
         # Dissociate a filename and define a backup filename.
         ($bname = $fname_old) =~ s/(.*)([.]\w+)$/$1/;
         ($ext   = $fname_old) =~ s/(.*)([.]\w+)$/$2/;
-        $fname_new = $bname.($tstamp_of_int ? $fname_space : '').$tstamp_of_int;
+        $fname_new = $bname.($timestamp_of_int ? '_' : '').$timestamp_of_int;
         $fname_new = $fname_new.$ext if $ext ne $fname_old;
         
         # Buffer the old and new fnames as key-val pairs.
@@ -145,234 +112,105 @@ sub baker {
     print %fname_old_and_new ?
         "Backing up completed. " :
         "None of the designated files found in [$path_of_int$path_delim].\n";
+    
+    return;
 }
 
 
-#
-# Subroutines from My::Toolset
-#
-sub show_front_matter {
-    my $hash_ref = shift; # Arg 1: To be %_prog_info
-    
-    #
-    # Data type validation and deref: Arg 1
-    #
-    my $_sub_name = join('::', (caller(0))[0, 3]);
-    croak "The 1st arg to [$_sub_name] must be a hash ref!"
-        unless ref $hash_ref eq HASH;
-    my %_prog_info = %$hash_ref;
-    
-    # Subroutine optional arguments
-    my(
-        $is_prog,
-        $is_auth,
-        $is_usage,
-        $is_timestamp,
-        $is_no_trailing_blkline,
-        $is_no_newline,
-        $is_copy,
-    );
-    my $lead_symb    = '';
-    foreach (@_) {
-        $is_prog                = 1  if /prog/i;
-        $is_auth                = 1  if /auth/i;
-        $is_usage               = 1  if /usage/i;
-        $is_timestamp           = 1  if /timestamp/i;
-        $is_no_trailing_blkline = 1  if /no_trailing_blkline/i;
-        $is_no_newline          = 1  if /no_newline/i;
-        $is_copy                = 1  if /copy/i;
-        # A single non-alphanumeric character
-        $lead_symb              = $_ if /^[^a-zA-Z0-9]$/;
-    }
-    my $newline = $is_no_newline ? "" : "\n";
-    
-    #
-    # Fill in the front matter array.
-    #
-    my @_fm;
-    my $k = 0;
-    my $border_len = $lead_symb ? 69 : 70;
-    my %borders = (
-        '+' => $lead_symb.('+' x $border_len).$newline,
-        '*' => $lead_symb.('*' x $border_len).$newline,
-    );
-    
-    # Top rule
-    if ($is_prog or $is_auth) {
-        $_fm[$k++] = $borders{'+'};
-    }
-    
-    # Program info, except the usage
-    if ($is_prog) {
-        $_fm[$k++] = sprintf(
-            "%s%s %s: %s%s",
-            ($lead_symb ? $lead_symb.' ' : $lead_symb),
-            $_prog_info{titl},
-            $_prog_info{vers},
-            $_prog_info{expl},
-            $newline
+sub baker_outer {
+    if (@ARGV) {
+        my %prog_info = (
+            titl        => basename($0, '.pl'),
+            expl        => 'File backup assistant',
+            vers        => $VERSION,
+            date_last   => $LAST,
+            date_first  => $FIRST,
+            auth        => {
+                name => 'Jaewoong Jang',
+                posi => 'PhD student',
+                affi => 'University of Tokyo',
+                mail => 'jan9@korea.ac.kr',
+            },
         );
-        $_fm[$k++] = sprintf(
-            "%s%s%s%s",
-            ($lead_symb ? $lead_symb.' ' : $lead_symb),
-            'Last update:'.($is_timestamp ? '  ': ' '),
-            $_prog_info{date_last},
-            $newline
+        my %cmd_opts = ( # Command-line opts
+            timestamp => qr/-?-(?:timestamp|ts|dt)\s*=\s*/i, # dt: legacy
+            nofm      => qr/-?-nofm/i,
+            nopause   => qr/-?-nopause/i,
         );
-    }
-    
-    # Timestamp
-    if ($is_timestamp) {
-        my %_datetimes = construct_timestamps('-');
-        $_fm[$k++] = sprintf(
-            "%sCurrent time: %s%s",
-            ($lead_symb ? $lead_symb.' ' : $lead_symb),
-            $_datetimes{ymdhms},
-            $newline
+        my %run_opts = ( # Program run opts
+            backup_fnames => [],
+            timestamp     => 'd', # d, dt, none
+            is_nofm       => 0,
+            is_nopause    => 0,
         );
+        
+        # ARGV validation and parsing
+        validate_argv(\@ARGV, \%cmd_opts);
+        parse_argv(\@ARGV, \%cmd_opts, \%run_opts);
+        
+        # Notification - beginning
+        show_front_matter(\%prog_info, 'prog', 'auth', 'no_trailing_blkline')
+            unless $run_opts{is_nofm};
+        
+        # Main
+        baker(\%run_opts);
+        
+        # Notification - end
+        pause_shell() unless $run_opts{is_nopause};
     }
     
-    # Author info
-    if ($is_auth) {
-        $_fm[$k++] = $lead_symb.$newline if $is_prog;
-        $_fm[$k++] = sprintf(
-            "%s%s%s",
-            ($lead_symb ? $lead_symb.' ' : $lead_symb),
-            $_prog_info{auth}{$_},
-            $newline
-        ) for qw(name posi affi mail);
-    }
+    system("perldoc \"$0\"") if not @ARGV;
     
-    # Bottom rule
-    if ($is_prog or $is_auth) {
-        $_fm[$k++] = $borders{'+'};
-    }
-    
-    # Program usage: Leading symbols are not used.
-    if ($is_usage) {
-        $_fm[$k++] = $newline if $is_prog or $is_auth;
-        $_fm[$k++] = $_prog_info{usage};
-    }
-    
-    # Feed a blank line at the end of the front matter.
-    if (not $is_no_trailing_blkline) {
-        $_fm[$k++] = $newline;
-    }
-    
-    #
-    # Print the front matter.
-    #
-    if ($is_copy) {
-        return @_fm;
-    }
-    elsif (not $is_copy) {
-        print for @_fm;
-    }
+    return;
 }
 
 
-sub construct_timestamps {
-    # Optional setting for the date component separator
-    my $_date_sep  = '';
-    
-    # Terminate the program if the argument passed
-    # is not allowed to be a delimiter.
-    my @_delims = ('-', '_');
-    if ($_[0]) {
-        $_date_sep = $_[0];
-        my $is_correct_delim = grep $_date_sep eq $_, @_delims;
-        croak "The date delimiter must be one of: [".join(', ', @_delims)."]"
-            unless $is_correct_delim;
-    }
-    
-    # Construct and return a datetime hash.
-    my $_dt  = DateTime->now(time_zone => 'local');
-    my $_ymd = $_dt->ymd($_date_sep);
-    my $_hms = $_dt->hms(($_date_sep ? ':' : ''));
-    (my $_hm = $_hms) =~ s/[0-9]{2}$//;
-    
-    my %_datetimes = (
-        none   => '', # Used for timestamp suppressing
-        ymd    => $_ymd,
-        hms    => $_hms,
-        hm     => $_hm,
-        ymdhms => sprintf("%s%s%s", $_ymd, ($_date_sep ? ' ' : '_'), $_hms),
-        ymdhm  => sprintf("%s%s%s", $_ymd, ($_date_sep ? ' ' : '_'), $_hm),
-    );
-    
-    return %_datetimes;
-}
+baker_outer();
+__END__
 
+=head1 NAME
 
-sub validate_argv {
-    my $hash_ref  = shift; # Arg 1: To be %_prog_info
-    my $array_ref = shift; # Arg 2: To be @_argv
-    my $num_of_req_argv;   # Arg 3: (Optional) Number of required args
-    $num_of_req_argv = shift if defined $_[0];
-    
-    #
-    # Data type validation and deref: Arg 1
-    #
-    my $_sub_name = join('::', (caller(0))[0, 3]);
-    croak "The 1st arg to [$_sub_name] must be a hash ref!"
-        unless ref $hash_ref eq HASH;
-    my %_prog_info = %$hash_ref;
-    
-    #
-    # Data type validation and deref: Arg 2
-    #
-    croak "The 2nd arg to [$_sub_name] must be an array ref!"
-        unless ref $array_ref eq ARRAY;
-    my @_argv = @$array_ref;
-    
-    #
-    # Terminate the program if the number of required arguments passed
-    # is not sufficient.
-    # (performed only when the 3rd optional argument is given)
-    #
-    if ($num_of_req_argv) {
-        my $num_of_req_argv_passed = grep $_ !~ /-/, @_argv;
-        if ($num_of_req_argv_passed < $num_of_req_argv) {
-            say $_prog_info{usage};
-            say "    | You have input $num_of_req_argv_passed required args,".
-                " but we need $num_of_req_argv.";
-            say "    | Please refer to the usage above.";
-            exit;
-        }
-    }
-    
-    #
-    # Count the number of correctly passed options.
-    #
-    
-    # Non-fnames
-    my $num_of_corr_opts = 0;
-    foreach my $arg (@_argv) {
-        foreach my $v (values %{$_prog_info{opts}}) {
-            if ($arg =~ /$v/i) {
-                $num_of_corr_opts++;
-                next;
-            }
-        }
-    }
-    
-    # Fname-likes
-    my $num_of_fnames = 0;
-    $num_of_fnames = grep $_ !~ /^-/, @_argv;
-    $num_of_corr_opts += $num_of_fnames;
-    
-    # Warn if "no" correct options have been passed.
-    if ($num_of_corr_opts == 0) {
-        say $_prog_info{usage};
-        say "    | None of the command-line options was correct.";
-        say "    | Please refer to the usage above.";
-        exit;
-    }
-}
+baker - File backup assistant
 
+=head1 SYNOPSIS
 
-sub pause_shell {
-    print "Press enter to exit...";
-    while (<STDIN>) { last; }
-}
-#eof
+    perl baker.pl [-timestamp=key] file ...
+
+=head1 DESCRIPTION
+
+Back up files into respective subdirs prefixed by 'bak_'.
+
+=head1 OPTIONS
+
+    -timestamp=key (short term: -ts)
+        d (default)
+            Timestamp up to yyyymmdd
+        dt
+            Timestamp up to yyyymmdd_hhmm
+        none
+            No timestamp
+
+=head1 EXAMPLES
+
+    perl baker.pl oliver.eps heaviside.dat
+    perl baker.pl bateman.ps -ts=d
+    perl baker.pl harry_bateman.ps -ts=none
+
+=head1 REQUIREMENTS
+
+Perl 5
+
+=head1 AUTHOR
+
+Jaewoong Jang <jan9@korea.ac.kr>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2017-2019 Jaewoong Jang
+
+=head1 LICENSE
+
+This software is available under the MIT license;
+the license information is found in 'LICENSE'.
+
+=cut

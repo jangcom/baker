@@ -1,36 +1,36 @@
-    NAME
-        baker - File backup assistant
+NAME
+    baker - File backup assistant
 
-    SYNOPSIS
-        perl baker.pl [-dt=key] file ...
+SYNOPSIS
+        perl baker.pl [-timestamp=key] file ...
 
-    DESCRIPTION
-        Back up files into respective subdirs prefixed by 'bak_'.
+DESCRIPTION
+    Back up files into respective subdirs prefixed by 'bak_'.
 
-    OPTIONS
-        -dt=key
-            d
-                Timestamp reduces from yyyymmdd_hhmm to yyyymmdd.
+OPTIONS
+        -timestamp=key (short term: -ts)
+            d (default)
+                Timestamp up to yyyymmdd
+            dt
+                Timestamp up to yyyymmdd_hhmm
             none
-                Timestamp suppressed.
+                No timestamp
 
-    EXAMPLES
+EXAMPLES
         perl baker.pl oliver.eps heaviside.dat
-        perl baker.pl bateman.ps -dt=d
-        perl baker.pl harry_bateman.ps -dt=none
+        perl baker.pl bateman.ps -ts=d
+        perl baker.pl harry_bateman.ps -ts=none
 
-    REQUIREMENTS
-        Perl 5
+REQUIREMENTS
+    Perl 5
 
-    SEE ALSO
-        perl(1)
+AUTHOR
+    Jaewoong Jang <jan9@korea.ac.kr>
 
-    AUTHOR
-        Jaewoong Jang <jang.comsci@gmail.com>
+COPYRIGHT
+    Copyright (c) 2017-2019 Jaewoong Jang
 
-    COPYRIGHT
-        Copyright (c) 2017-2018 Jaewoong Jang
+LICENSE
+    This software is available under the MIT license; the license
+    information is found in 'LICENSE'.
 
-    LICENSE
-        This software is available under the MIT license;
-        the license information is found in 'LICENSE'.

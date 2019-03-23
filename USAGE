@@ -2,7 +2,7 @@ NAME
     baker - File backup assistant
 
 SYNOPSIS
-        perl baker.pl [-timestamp=key] file ...
+        perl baker.pl [file ...] [-timestamp=key]
 
 DESCRIPTION
     Back up files into respective subdirs prefixed by 'bak_'.

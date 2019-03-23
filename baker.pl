@@ -174,7 +174,7 @@ baker - File backup assistant
 
 =head1 SYNOPSIS
 
-    perl baker.pl [-timestamp=key] file ...
+    perl baker.pl [file ...] [-timestamp=key]
 
 =head1 DESCRIPTION
 

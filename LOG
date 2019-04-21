@@ -1,7 +1,13 @@
-v1.02
-- 2nd release
+v1.03 (2019-04-21)
+- The timestamp position can now be specified between the front and rear
+  of a filename.
+
+v1.02 (2019-03-26)
 - Module routines have been embedded in the source code;
   the source code is now standalone.
 
-v1.01
-- 1st release
+v1.01 (2019-03-23)
+- Source code reorganized
+
+v1.00 (2017-01-02)
+- Source code created

@@ -1,28 +1,28 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use utf8;
 use autodie;
-use feature        qw(say);
-use File::Basename qw(basename);
-use File::Copy     qw(copy);
-use Carp           qw(croak);
+use utf8;
+use Carp qw(croak);
 use DateTime;
+use feature qw(say);
+use File::Basename qw(basename);
+use File::Copy qw(copy);
 use constant ARRAY => ref [];
 use constant HASH  => ref {};
 
 
-our $VERSION = '1.02';
-our $LAST    = '2019-03-26';
+our $VERSION = '1.03';
+our $LAST    = '2019-04-21';
 our $FIRST   = '2017-01-02';
 
 
 #----------------------------------My::Toolset----------------------------------
 sub show_front_matter {
     # """Display the front matter."""
-    my $sub_name = join('::', (caller(0))[0, 3]);
     
     my $prog_info_href = shift;
+    my $sub_name = join('::', (caller(0))[0, 3]);
     croak "The 1st arg of [$sub_name] must be a hash ref!"
         unless ref $prog_info_href eq HASH;
     
@@ -36,7 +36,7 @@ sub show_front_matter {
         $is_no_newline,
         $is_copy,
     );
-    my $lead_symb    = '';
+    my $lead_symb = '';
     foreach (@_) {
         $is_prog                = 1  if /prog/i;
         $is_auth                = 1  if /auth/i;
@@ -91,7 +91,7 @@ sub show_front_matter {
             "%sCurrent time: %s%s",
             ($lead_symb ? $lead_symb.' ' : $lead_symb),
             $datetimes{ymdhms},
-            $newline
+            $newline,
         );
     }
     
@@ -102,7 +102,7 @@ sub show_front_matter {
             "%s%s%s",
             ($lead_symb ? $lead_symb.' ' : $lead_symb),
             $prog_info_href->{auth}{$_},
-            $newline
+            $newline,
         ) for qw(name posi affi mail);
     }
     
@@ -137,11 +137,10 @@ sub show_front_matter {
 
 sub validate_argv {
     # """Validate @ARGV against %cmd_opts."""
-    my $sub_name = join('::', (caller(0))[0, 3]);
     
     my $argv_aref     = shift;
     my $cmd_opts_href = shift;
-    
+    my $sub_name = join('::', (caller(0))[0, 3]);
     croak "The 1st arg of [$sub_name] must be an array ref!"
         unless ref $argv_aref eq ARRAY;
     croak "The 2nd arg of [$sub_name] must be a hash ref!"
@@ -210,6 +209,42 @@ sub validate_argv {
 }
 
 
+sub show_elapsed_real_time {
+    # """Show the elapsed real time."""
+    
+    my @opts = @_ if @_;
+    
+    # Parse optional arguments.
+    my $is_return_copy = 0;
+    my @del; # Garbage can
+    foreach (@opts) {
+        if (/copy/i) {
+            $is_return_copy = 1;
+            # Discard the 'copy' string to exclude it from
+            # the optional strings that are to be printed.
+            push @del, $_;
+        }
+    }
+    my %dels = map { $_ => 1 } @del;
+    @opts = grep !$dels{$_}, @opts;
+    
+    # Optional strings printing
+    print for @opts;
+    
+    # Elapsed real time printing
+    my $elapsed_real_time = sprintf("Elapsed real time: [%s s]", time - $^T);
+    
+    # Return values
+    if ($is_return_copy) {
+        return $elapsed_real_time;
+    }
+    else {
+        say $elapsed_real_time;
+        return;
+    }
+}
+
+
 sub pause_shell {
     # """Pause the shell."""
     
@@ -241,7 +276,7 @@ sub construct_timestamps {
     # Construct and return a datetime hash.
     my $dt  = DateTime->now(time_zone => 'local');
     my $ymd = $dt->ymd($date_sep);
-    my $hms = $dt->hms(($date_sep ? ':' : ''));
+    my $hms = $dt->hms($date_sep ? ':' : '');
     (my $hm = $hms) =~ s/[0-9]{2}$//;
     
     my %datetimes = (
@@ -255,8 +290,6 @@ sub construct_timestamps {
     
     return %datetimes;
 }
-
-
 #-------------------------------------------------------------------------------
 
 
@@ -276,10 +309,16 @@ sub parse_argv {
             push @{$run_opts_href->{backup_fnames}}, $_;
         }
         
-        # Timestamp
+        # Timestamp level
         if (/$cmd_opts{timestamp}/) {
             s/$cmd_opts{timestamp}//i;
             $run_opts_href->{timestamp} = $_;
+        }
+        
+        # Timestamp position
+        if (/$cmd_opts{timestamp_pos}/) {
+            s/$cmd_opts{timestamp_pos}//i;
+            $run_opts_href->{timestamp_pos} = $_;
         }
         
         # The front matter won't be displayed at the beginning of the program.
@@ -301,11 +340,12 @@ sub baker {
     # """Back up the designated files."""
     
     my $run_opts_href = shift;
-    my %datetimes     = construct_timestamps();
+    my %datetimes = construct_timestamps();
     my $timestamp_of_int =
         $run_opts_href->{timestamp} =~ /\bdt\b/i   ? $datetimes{ymdhm} :
         $run_opts_href->{timestamp} =~ /\bnone\b/i ? '' :
                                                      $datetimes{ymd};
+    my $timestamp_pos = $run_opts_href->{timestamp_pos};
     
     # Define filename elements.
     my($bname, $ext, $fname_new, $subdir);
@@ -322,7 +362,12 @@ sub baker {
         # Dissociate a filename and define a backup filename.
         ($bname = $fname_old) =~ s/(.*)([.]\w+)$/$1/;
         ($ext   = $fname_old) =~ s/(.*)([.]\w+)$/$2/;
-        $fname_new = $bname.($timestamp_of_int ? '_' : '').$timestamp_of_int;
+        $fname_new = sprintf(
+            "%s%s%s",
+            $timestamp_pos =~ /front/i ? $timestamp_of_int : $bname,
+            ($timestamp_of_int ? '_' : ''),
+            $timestamp_pos =~ /front/i ? $bname : $timestamp_of_int,
+        );
         $fname_new = $fname_new.$ext if $ext ne $fname_old;
         
         # Buffer the old and new fnames as key-val pairs.
@@ -368,13 +413,15 @@ sub outer_baker {
             },
         );
         my %cmd_opts = ( # Command-line opts
-            timestamp => qr/-?-(?:timestamp|ts|dt)\s*=\s*/i, # dt: legacy
-            nofm      => qr/-?-nofm/i,
-            nopause   => qr/-?-nopause/i,
+            timestamp     => qr/-?-(?:timestamp|ts|dt)\s*=\s*/i, # dt: legacy
+            timestamp_pos => qr/-?-(?:timestamp_)?pos\s*=\s*/i,
+            nofm          => qr/-?-nofm\b/i,
+            nopause       => qr/-?-nopause\b/i,
         );
         my %run_opts = ( # Program run opts
             backup_fnames => [],
-            timestamp     => 'd', # d, dt, none
+            timestamp     => 'd',    # d, dt, none
+            timestamp_pos => 'rear', # front, rear
             is_nofm       => 0,
             is_nopause    => 0,
         );
@@ -384,14 +431,15 @@ sub outer_baker {
         parse_argv(\@ARGV, \%cmd_opts, \%run_opts);
         
         # Notification - beginning
-        show_front_matter(\%prog_info, 'prog', 'auth', 'no_trailing_blkline')
+        show_front_matter(\%prog_info, 'prog', 'auth')
             unless $run_opts{is_nofm};
         
         # Main
         baker(\%run_opts);
         
         # Notification - end
-        pause_shell() unless $run_opts{is_nopause};
+        pause_shell()
+            unless $run_opts{is_nopause};
     }
     
     system("perldoc \"$0\"") if not @ARGV;
@@ -409,7 +457,7 @@ baker - File backup assistant
 
 =head1 SYNOPSIS
 
-    perl baker.pl [file ...] [-timestamp=key]
+    perl baker.pl [file ...] [-timestamp=key] [-timestamp_pos=front|rear]
                   [-nofm] [-nopause]
 
 =head1 DESCRIPTION
@@ -425,6 +473,12 @@ Back up files into respective subdirs prefixed by 'bak_'.
             Timestamp up to yyyymmdd_hhmm
         none
             No timestamp
+
+    -timestamp_pos=front|rear (short term: -pos, default: rear)
+        front
+            Timestamping before the filename
+        rear
+            Timestamping after the filename
 
     -nofm
         The front matter will not be displayed at the beginning of the program.
@@ -442,6 +496,10 @@ Back up files into respective subdirs prefixed by 'bak_'.
 =head1 REQUIREMENTS
 
 Perl 5
+
+=head1 SEE ALSO
+
+L<baker on GitHub|https://github.com/jangcom/baker>
 
 =head1 AUTHOR
 

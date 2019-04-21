@@ -2,7 +2,8 @@ NAME
     baker - File backup assistant
 
 SYNOPSIS
-        perl baker.pl [file ...] [-timestamp=key]
+        perl baker.pl [file ...] [-timestamp=key] [-timestamp_pos=front|rear]
+                      [-nofm] [-nopause]
 
 DESCRIPTION
     Back up files into respective subdirs prefixed by 'bak_'.
@@ -16,6 +17,19 @@ OPTIONS
             none
                 No timestamp
 
+        -timestamp_pos=front|rear (short term: -pos, default: rear)
+            front
+                Timestamping before the filename
+            rear
+                Timestamping after the filename
+
+        -nofm
+            The front matter will not be displayed at the beginning of the program.
+
+        -nopause
+            The shell will not be paused at the end of the program.
+            Use it for a batch run.
+
 EXAMPLES
         perl baker.pl oliver.eps heaviside.dat
         perl baker.pl bateman.ps -ts=d
@@ -23,6 +37,9 @@ EXAMPLES
 
 REQUIREMENTS
     Perl 5
+
+SEE ALSO
+    baker on GitHub <https://github.com/jangcom/baker>
 
 AUTHOR
     Jaewoong Jang <jan9@korea.ac.kr>

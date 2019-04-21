@@ -462,7 +462,7 @@ baker - File backup assistant
 
 =head1 DESCRIPTION
 
-Back up files into respective subdirs prefixed by 'bak_'.
+Back up files into respective subdirectories prefixed by 'bak_'.
 
 =head1 OPTIONS
 

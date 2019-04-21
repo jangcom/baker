@@ -6,7 +6,7 @@ SYNOPSIS
                       [-nofm] [-nopause]
 
 DESCRIPTION
-    Back up files into respective subdirs prefixed by 'bak_'.
+    Back up files into respective subdirectories prefixed by 'bak_'.
 
 OPTIONS
         -timestamp=key (short term: -ts)

@@ -1,0 +1,15 @@
+# github archive
+github/
+
+# baker records
+bak_baker.pl/
+baker.bat
+
+# MSWin link files
+*.lnk
+
+# POD-related
+baker_usage.bat
+baker.html
+pod2htmd.tmp
+baker_pod2html.bat

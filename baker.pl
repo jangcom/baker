@@ -12,8 +12,8 @@ use constant ARRAY => ref [];
 use constant HASH  => ref {};
 
 
-our $VERSION = '1.03';
-our $LAST    = '2019-04-21';
+our $VERSION = '1.04';
+our $LAST    = '2019-10-23';
 our $FIRST   = '2017-01-02';
 
 
@@ -76,10 +76,17 @@ sub show_front_matter {
             $newline,
         );
         $fm[$k++] = sprintf(
-            "%sVersion %s (%s)%s",
+            "%s%s v%s (%s)%s",
             ($lead_symb ? $lead_symb.' ' : $lead_symb),
+            $prog_info_href->{titl},
             $prog_info_href->{vers},
             $prog_info_href->{date_last},
+            $newline,
+        );
+        $fm[$k++] = sprintf(
+            "%sPerl %s%s",
+            ($lead_symb ? $lead_symb.' ' : $lead_symb),
+            $^V,
             $newline,
         );
     }
@@ -103,7 +110,12 @@ sub show_front_matter {
             ($lead_symb ? $lead_symb.' ' : $lead_symb),
             $prog_info_href->{auth}{$_},
             $newline,
-        ) for qw(name posi affi mail);
+        ) for (
+            'name',
+#            'posi',
+#            'affi',
+            'mail',
+        );
     }
     
     # Bottom rule
@@ -407,9 +419,9 @@ sub outer_baker {
             date_first => $FIRST,
             auth       => {
                 name => 'Jaewoong Jang',
-                posi => 'PhD student',
-                affi => 'University of Tokyo',
-                mail => 'jan9@korea.ac.kr',
+#                posi => '',
+#                affi => '',
+                mail => 'jangj@korea.ac.kr',
             },
         );
         my %cmd_opts = ( # Command-line opts
@@ -431,15 +443,14 @@ sub outer_baker {
         parse_argv(\@ARGV, \%cmd_opts, \%run_opts);
         
         # Notification - beginning
-        show_front_matter(\%prog_info, 'prog', 'auth')
+        show_front_matter(\%prog_info, 'prog', 'auth', 'no_trailing_blkline')
             unless $run_opts{is_nofm};
         
         # Main
         baker(\%run_opts);
         
         # Notification - end
-        pause_shell()
-            unless $run_opts{is_nopause};
+        $run_opts{is_nopause} ? print "\n" : pause_shell();
     }
     
     system("perldoc \"$0\"") if not @ARGV;
@@ -503,7 +514,7 @@ L<baker on GitHub|https://github.com/jangcom/baker>
 
 =head1 AUTHOR
 
-Jaewoong Jang <jan9@korea.ac.kr>
+Jaewoong Jang <jangj@korea.ac.kr>
 
 =head1 COPYRIGHT
 
